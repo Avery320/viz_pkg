@@ -1,139 +1,130 @@
 #!/usr/bin/env python3
 
 import rospy
-import yaml
 import sys
-import os
 from geometry_msgs.msg import PoseStamped
 from visualization_msgs.msg import Marker
+from moveit_msgs.msg import CollisionObject
+from shape_msgs.msg import SolidPrimitive
+from geometry_msgs.msg import Pose
 
 
-# 全域變數
-plane_x = 0.0
-plane_y = 0.0
-plane_z = 0.0
-plane_a = 2.0
-plane_b = 1.5
-thickness = 0.005  # 固定厚度
-
-
-def load_config():
-    """載入簡單配置文件"""
-    global plane_x, plane_y, plane_z, plane_a, plane_b
-    try:
-        import rospkg
-        rospack = rospkg.RosPack()
-        pkg_path = rospack.get_path('viz_pkg')
-        config_file = os.path.join(pkg_path, 'config', 'plane_config.yaml')
-
-        with open(config_file, 'r') as f:
-            config = yaml.safe_load(f)
-
-        plane_x = config['position']['x']
-        plane_y = config['position']['y']
-        plane_z = config['position']['z']
-        plane_a = config['size']['a']
-        plane_b = config['size']['b']
-
-        rospy.loginfo(f"載入配置: 位置({plane_x}, {plane_y}, {plane_z}), 尺寸({plane_a}x{plane_b})")
-
-    except Exception as e:
-        rospy.logwarn(f"無法載入配置文件，使用預設值: {e}")
-
-
-def pose_callback(msg):
-    """接收位置更新"""
-    global plane_x, plane_y, plane_z
-    plane_x = msg.pose.position.x
-    plane_y = msg.pose.position.y
-    plane_z = msg.pose.position.z
-    rospy.loginfo(f"位置更新: ({plane_x}, {plane_y}, {plane_z})")
-
-
-def publish_marker():
-    """發布平面標記 - 以位置為中心，x,y方向作為a,b大小，z固定-0.005"""
-    marker = Marker()
-    marker.header.frame_id = "world"
-    marker.header.stamp = rospy.Time.now()
-    marker.id = 0
-    marker.type = Marker.CUBE
-    marker.action = Marker.ADD
-
-    # 位置 - 以輸入位置為中心
-    marker.pose.position.x = plane_x
-    marker.pose.position.y = plane_y
-    marker.pose.position.z = plane_z
-    marker.pose.orientation.w = 1.0
-
-    # 尺寸 - x,y方向作為a,b大小，z方向固定厚度
-    marker.scale.x = abs(plane_a)  # X方向大小 (a)
-    marker.scale.y = abs(plane_b)  # Y方向大小 (b)
-    marker.scale.z = thickness     # Z方向厚度 (固定0.005)
-
-    # 顏色 (藍色半透明)
-    marker.color.r = 0.0
-    marker.color.g = 0.5
-    marker.color.b = 1.0
-    marker.color.a = 0.7
-
-    marker_pub.publish(marker)
-def set_position(x, y, z):
-    """手動設定位置"""
-    global plane_x, plane_y, plane_z
-    plane_x = float(x)
-    plane_y = float(y)
-    plane_z = float(z)
-    rospy.loginfo(f"手動設定位置: ({plane_x}, {plane_y}, {plane_z})")
-
-
-def set_size(a, b):
-    """手動設定尺寸"""
-    global plane_a, plane_b
-    plane_a = float(a)
-    plane_b = float(b)
-    rospy.loginfo(f"手動設定尺寸: {plane_a} x {plane_b}")
+class PlaneVisualizer:
+    """平面視覺化器 - 發布視覺化標記和碰撞物體"""
+    
+    def __init__(self):
+        # 初始化參數
+        self.plane_x = 0.0
+        self.plane_y = 0.0
+        self.plane_z = 0.0
+        self.plane_a = 2.0
+        self.plane_b = 1.5
+        self.plane_c = 0.005  # 固定厚度
+        
+        # 處理命令行參數
+        self._parse_command_line()
+        
+        # 初始化發布者
+        self.marker_pub = rospy.Publisher('/plane_marker', Marker, queue_size=1)
+        self.collision_pub = rospy.Publisher('/collision_object', CollisionObject, queue_size=1)
+        self.pose_sub = rospy.Subscriber('/plane_pose', PoseStamped, self._pose_callback)
+        
+        # 設置定時器
+        rospy.Timer(rospy.Duration(0.1), lambda event: self._publish_marker())
+        rospy.Timer(rospy.Duration(1.0), lambda event: self._publish_collision_object())
+        
+        self._log_info()
+    
+    def _parse_command_line(self):
+        """解析命令行參數"""
+        if len(sys.argv) == 6:
+            try:
+                self.plane_x = float(sys.argv[1])
+                self.plane_y = float(sys.argv[2])
+                self.plane_z = float(sys.argv[3])
+                self.plane_a = float(sys.argv[4])
+                self.plane_b = float(sys.argv[5])
+                rospy.loginfo(f"命令行設定: 位置({self.plane_x}, {self.plane_y}, {self.plane_z}), 尺寸({self.plane_a}x{self.plane_b})")
+            except ValueError:
+                rospy.logwarn("命令行參數格式錯誤，使用預設值")
+        elif len(sys.argv) > 1:
+            rospy.logwarn("需要5個參數: x y z a b")
+            rospy.logwarn("範例: rosrun viz_pkg plane_visualizer.py 1.0 2.0 0.5 3.0 2.5")
+    
+    def _pose_callback(self, msg):
+        """接收位置更新"""
+        self.plane_x = msg.pose.position.x
+        self.plane_y = msg.pose.position.y
+        self.plane_z = msg.pose.position.z
+        rospy.loginfo(f"位置更新: ({self.plane_x}, {self.plane_y}, {self.plane_z})")
+    
+    def _publish_marker(self):
+        """發布視覺化標記"""
+        marker = Marker()
+        marker.header.frame_id = "world"
+        marker.header.stamp = rospy.Time.now()
+        marker.id = 0
+        marker.type = Marker.CUBE
+        marker.action = Marker.ADD
+        
+        # 位置 - 偏移到中心點
+        marker.pose.position.x = self.plane_x + self.plane_a / 2.0
+        marker.pose.position.y = self.plane_y + self.plane_b / 2.0
+        marker.pose.position.z = self.plane_z + self.plane_c / 2.0
+        marker.pose.orientation.w = 1.0
+        
+        # 尺寸
+        marker.scale.x = self.plane_a
+        marker.scale.y = self.plane_b
+        marker.scale.z = self.plane_c
+        
+        # 顏色 (藍色半透明)
+        marker.color.r = 0.0
+        marker.color.g = 0.5
+        marker.color.b = 1.0
+        marker.color.a = 0.7
+        
+        self.marker_pub.publish(marker)
+    
+    def _publish_collision_object(self):
+        """發布碰撞物體"""
+        collision_object = CollisionObject()
+        collision_object.header.frame_id = "world"
+        collision_object.header.stamp = rospy.Time.now()
+        collision_object.id = "plane_collision"
+        collision_object.operation = CollisionObject.ADD
+        
+        # 創建實體形狀
+        primitive = SolidPrimitive()
+        primitive.type = SolidPrimitive.BOX
+        primitive.dimensions = [self.plane_a, self.plane_b, self.plane_c]
+        
+        # 設定位置
+        pose = Pose()
+        pose.position.x = self.plane_x + self.plane_a / 2.0
+        pose.position.y = self.plane_y + self.plane_b / 2.0
+        pose.position.z = self.plane_z + self.plane_c / 2.0
+        pose.orientation.w = 1.0
+        
+        collision_object.primitives.append(primitive)
+        collision_object.primitive_poses.append(pose)
+        
+        self.collision_pub.publish(collision_object)
+        rospy.loginfo(f"發布碰撞物體: 起始點({self.plane_x}, {self.plane_y}, {self.plane_z}), 尺寸({self.plane_a}x{self.plane_b}x{self.plane_c})")
+    
+    def _log_info(self):
+        """輸出啟動信息"""
+        rospy.loginfo("平面顯示節點啟動")
+        rospy.loginfo(f"起始點: ({self.plane_x}, {self.plane_y}, {self.plane_z})")
+        rospy.loginfo(f"尺寸: {self.plane_a} x {self.plane_b}")
+        rospy.loginfo(f"厚度: {self.plane_c} (固定)")
+        rospy.loginfo("碰撞物體發布到: /collision_object")
+        rospy.loginfo("命令行啟動: rosrun viz_pkg plane_visualizer.py x y z a b")
+        rospy.loginfo("範例: rosrun viz_pkg plane_visualizer.py 1.0 2.0 0.5 3.0 2.5")
+        rospy.loginfo("位置更新: rostopic pub /plane_pose geometry_msgs/PoseStamped ...")
 
 
 if __name__ == '__main__':
     rospy.init_node('plane_visualizer')
-
-    # 載入配置文件
-    load_config()
-
-    # ROS 參數覆蓋配置
-    plane_a = rospy.get_param('~plane_a', plane_a)
-    plane_b = rospy.get_param('~plane_b', plane_b)
-    plane_x = rospy.get_param('~plane_x', plane_x)
-    plane_y = rospy.get_param('~plane_y', plane_y)
-    plane_z = rospy.get_param('~plane_z', plane_z)
-
-    # 檢查指令行參數 (手動輸入功能)
-    if len(sys.argv) == 4:
-        # 格式: rosrun viz_pkg plane_visualizer.py x y z
-        try:
-            set_position(sys.argv[1], sys.argv[2], sys.argv[3])
-        except ValueError:
-            rospy.logwarn("指令行參數格式錯誤")
-    elif len(sys.argv) == 6:
-        # 格式: rosrun viz_pkg plane_visualizer.py x y z a b
-        try:
-            set_position(sys.argv[1], sys.argv[2], sys.argv[3])
-            set_size(sys.argv[4], sys.argv[5])
-        except ValueError:
-            rospy.logwarn("指令行參數格式錯誤")
-
-    # 發布者和訂閱者
-    marker_pub = rospy.Publisher('/plane_marker', Marker, queue_size=1)
-    pose_sub = rospy.Subscriber('/plane_pose', PoseStamped, pose_callback)
-
-    # 定時發布
-    timer = rospy.Timer(rospy.Duration(0.1), lambda event: publish_marker())
-
-    rospy.loginfo(f"平面顯示節點啟動")
-    rospy.loginfo(f"位置: ({plane_x}, {plane_y}, {plane_z})")
-    rospy.loginfo(f"尺寸: {plane_a} x {plane_b}")
-    rospy.loginfo(f"厚度: {thickness} (固定)")
-    rospy.loginfo("手動輸入: rosrun viz_pkg plane_visualizer.py x y z [a b]")
-    rospy.loginfo("位置更新: rostopic pub /plane_pose geometry_msgs/PoseStamped ...")
-
+    visualizer = PlaneVisualizer()
     rospy.spin()

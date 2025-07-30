@@ -110,7 +110,7 @@ class PlaneVisualizer:
         collision_object.primitive_poses.append(pose)
         
         self.collision_pub.publish(collision_object)
-        rospy.loginfo(f"發布碰撞物體: 起始點({self.plane_x}, {self.plane_y}, {self.plane_z}), 尺寸({self.plane_a}x{self.plane_b}x{self.plane_c})")
+        # rospy.loginfo(f"發布碰撞物體: 起始點({self.plane_x}, {self.plane_y}, {self.plane_z}), 尺寸({self.plane_a}x{self.plane_b}x{self.plane_c})")
     
     def _log_info(self):
         """輸出啟動信息"""

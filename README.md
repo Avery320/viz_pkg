@@ -1,151 +1,64 @@
-# viz_pkg - 簡單 ROS 平面顯示套件
+# viz_pkg - STL 環境載入與碰撞物件工具
 
-最簡單的 ROS 套件，用於在 rviz 中顯示平面。
+提供將 STL 模型載入至 MoveIt PlanningScene（碰撞物件）與 RViz（Marker 顯示），支援多檔載入、檔名自動生成 id、一次性載入後自動結束。
 
-## 功能特色
+## 功能
+- 載入單/多個 .stl
+- 以檔名自動生成唯一 object_id（重複自動加 _2、_3…）
+- MoveIt 碰撞物件 + RViz Marker 顯示（topic: /env_marker）
+- 預設 Marker 顏色：淺灰 [0.8, 0.8, 0.8, 0.4]，可由參數覆蓋
+- 一次性載入 3 秒後自動結束
 
-- ✅ **簡單配置文件**: 預先定義位置與大小
-- ✅ **手動輸入**: 支援指令行參數輸入
-- ✅ **動態更新**: 透過 ROS topic 更新位置
-- ✅ **正確的平面建立**: 以位置為中心，x,y 方向作為 a,b 大小，z 方向固定厚度 0.005m
+資源路徑支援：
+- package URL，例如 package://viz_pkg/modol/3dcp_ws.stl
+- 套件內相對路徑，例如 modol/3dcp_ws.stl（亦相容舊路徑 config/）
 
 ## 使用方法
 
-### 1. 基本啟動
+### 1) 單一檔案
 ```bash
-roslaunch viz_pkg plane_visualizer.launch
+rosrun viz_pkg viz_obj.py _mesh_path:=modol/3dcp_ws.stl
+# 或：rosrun viz_pkg viz_obj.py _mesh_path:=package://viz_pkg/modol/3dcp_ws.stl
 ```
 
-### 2. 自訂參數啟動
+### 2) 多個檔案
+- 逗號分隔：
 ```bash
-roslaunch viz_pkg plane_visualizer.launch plane_a:=3.0 plane_b:=2.0 plane_x:=1.0 plane_y:=2.0 plane_z:=0.5
+rosrun viz_pkg viz_obj.py "_mesh_paths:=modol/a.stl,modol/b.stl"
+```
+- YAML list（搭配 roslaunch）：
+```xml
+<node pkg="viz_pkg" type="viz_obj.py" name="viz_loader" output="screen">
+  <param name="mesh_paths" value="['package://viz_pkg/modol/a.stl','package://viz_pkg/modol/b.stl']"/>
+</node>
 ```
 
-### 3. 手動輸入 (指令行)
+### 3) 指令工具（逐個參數）
 ```bash
-# 只設定位置
-rosrun viz_pkg plane_visualizer.py 1.0 2.0 0.5
-
-# 設定位置和尺寸
-rosrun viz_pkg plane_visualizer.py 1.0 2.0 0.5 3.0 2.0
+rosrun viz_pkg load_models.py package://viz_pkg/modol/a.stl package://viz_pkg/modol/b.stl
 ```
 
-### 4. 動態位置更新
+### 4) 設定顏色（RViz Marker）
 ```bash
-rostopic pub /plane_pose geometry_msgs/PoseStamped "header:
-  frame_id: 'world'
-pose:
-  position: {x: 1.0, y: 2.0, z: 0.5}"
+rosrun viz_pkg viz_obj.py _marker_color:='[1.0, 0.2, 0.2, 0.6]'
 ```
 
-### 5. 測試功能
+## 清除 / 查詢
+- 移除全部：
 ```bash
-rosrun viz_pkg test_simple.py
+rosrun viz_pkg clear_env.py _object_id:=你的id
+rosrun viz_pkg clear_env.py _remove_all:=true
 ```
-
-## 配置文件
-
-配置文件位於 `config/plane_config.yaml`：
-```yaml
-position:
-  x: 0.0
-  y: 0.0
-  z: 0.0
-
-size:
-  a: 2.0
-  b: 1.5
-```
-
-## 參數說明
-
-- `plane_a`: X 方向大小 (預設: 2.0m)
-- `plane_b`: Y 方向大小 (預設: 1.5m)
-- `plane_x`: X 座標 (預設: 0.0m)
-- `plane_y`: Y 座標 (預設: 0.0m)
-- `plane_z`: Z 座標 (預設: 0.0m)
-
-## ROS 主題
-
-- `/plane_marker`: 發布平面標記 (visualization_msgs/Marker)
-- `/plane_pose`: 接收位置更新 (geometry_msgs/PoseStamped)
-
-## 重要特性
-
-### 平面建立方式
-- **位置為中心**: 輸入的 (x,y,z) 座標為平面的中心點
-- **尺寸定義**: a 為 X 方向大小，b 為 Y 方向大小
-- **固定厚度**: Z 方向厚度固定為 0.005m (不可改變)
-- **座標系**: 使用 "world" 座標系
-
-### 使用 rostopic 指令：
+- 依 id 移除：
 ```bash
-rostopic pub /plane_pose geometry_msgs/PoseStamped "header:
-  frame_id: 'map'
-pose:
-  position: {x: 1.0, y: 2.0, z: 0.5}
-  orientation: {x: 0.0, y: 0.0, z: 0.0, w: 1.0}"
+rosrun viz_pkg remove_models.py table shelf_2
 ```
-
-## 參數說明
-
-- `frame_id`: 座標系 (預設: "map")
-- `plane_width`: 平面寬度 a (預設: 2.0)
-- `plane_height`: 平面高度 b (預設: 1.5)
-- `plane_thickness`: 平面厚度 (預設: 0.05)
-- `plane_x`: 初始 X 座標 (預設: 0.0)
-- `plane_y`: 初始 Y 座標 (預設: 0.0)
-- `plane_z`: 初始 Z 座標 (預設: 0.0)
-
-## ROS 主題
-
-### 發布的主題：
-- `/plane_marker` (visualization_msgs/Marker): 平面標記資訊
-
-### 訂閱的主題：
-- `/plane_pose` (geometry_msgs/PoseStamped): 接收新的平面位置
-
-## 檔案結構
-
-```
-viz_pkg/
-├── CMakeLists.txt
-├── package.xml
-├── setup.py
-├── README.md
-├── scripts/
-│   ├── plane_visualizer.py      # 主要節點
-│   └── test_plane_position.py   # 測試腳本
-├── launch/
-│   ├── plane_visualizer.launch  # 完整啟動檔案
-│   └── plane_only.launch        # 僅節點啟動檔案
-├── rviz/
-│   └── plane_visualization.rviz # rviz 設定檔
-└── src/
-    └── viz_pkg/
-        └── __init__.py
-```
-
-## 故障排除
-
-1. 如果看不到平面，請檢查：
-   - rviz 中的 Fixed Frame 是否設為 "map"
-   - Marker 顯示是否已啟用
-   - 平面位置是否在視野範圍內
-
-2. 如果節點無法啟動，請檢查：
-   - 是否已正確編譯套件
-   - 是否已載入環境變數 (source devel/setup.bash)
-   - Python 腳本是否有執行權限
-
-## 範例使用情境
-
-1. 顯示一個 3×2 的平面在位置 (1, 2, 0.5)：
+- 列出目前 MoveIt world objects：
 ```bash
-roslaunch viz_pkg plane_visualizer.launch plane_width:=3.0 plane_height:=2.0 plane_x:=1.0 plane_y:=2.0 plane_z:=0.5
+rosrun viz_pkg list_models.py
 ```
 
-2. 動態移動平面到新位置：
-```bash
-rosrun viz_pkg test_plane_position.py 5.0 3.0 1.0
-```
+## 備註
+- 預設 scale 為 [0.001, 0.001, 0.001]（mm → m）
+- 所有物件共用 frame_id/pose/scale；若需每物件獨立設定，可擴充 YAML 方案
+- 若需讓 PlanningScene 本身顯示為自訂顏色（非預設綠色），可加發 ObjectColor 設定（可依需求加工具）

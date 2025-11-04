@@ -19,6 +19,7 @@ catkin_install_python(PROGRAMS
   scripts/viz_obj.py
   scripts/clear_env.py
   scripts/list_models.py
+  scripts/sphere_marker.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

@@ -20,10 +20,10 @@ class ObjPublisher:
 
     def __init__(self):
         # Parameters
-        self.frame_id = rospy.get_param('~frame_id', 'world')
+        self.frame_id = 'world'
         self.object_id = rospy.get_param('~object_id', 'workspace_mesh')
         self.scale_xyz = rospy.get_param('~scale', [0.001, 0.001, 0.001])
-        self.pos_xyz = self._parse_xyz_from_argv(default=(0.0, 0.0, 0.0))
+        self.pos_xyz = (0.0, 0.0, 0.0)
 
         # Resolve mesh resource paths (STL only), support multiple
         rospack = rospkg.RosPack()
@@ -79,10 +79,7 @@ class ObjPublisher:
         self._items = items
 
         # RViz markers (per object), periodic publishing
-        marker_color = rospy.get_param('~marker_color', [0.8, 0.8, 0.8, 0.4])
-        if not (isinstance(marker_color, (list, tuple)) and len(marker_color) == 4):
-            rospy.logwarn('~marker_color must be [r,g,b,a]; using default (0.8,0.8,0.8,0.4)')
-            marker_color = [0.8, 0.8, 0.8, 0.4]
+        marker_color = [0.8, 0.8, 0.8, 0.4]
         use_embedded_mats = rospy.get_param('~marker_use_embedded_materials', False)
         marker_period = float(rospy.get_param('~marker_period', 0.1))
 

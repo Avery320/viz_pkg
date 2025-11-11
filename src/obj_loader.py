@@ -9,7 +9,7 @@ from typing import List, Set
 
 
 # Import separated RViz marker module (flat module)
-from rviz_marker import RvizMeshMarkerPublisher
+from rviz_marker import RvizMeshMarkerPublisher, TrianglesMarkerPublisher
 
 # Collision object manager (separated module)
 from collision_obj import CollisionObjectPublisher
@@ -78,41 +78,73 @@ class ObjPublisher:
 
         self._items = items
 
-        # RViz markers (per object), periodic publishing
+        # RViz markers / MoveIt collision: parameters and conditional creation
         marker_color = [0.8, 0.8, 0.8, 0.4]
         use_embedded_mats = rospy.get_param('~marker_use_embedded_materials', False)
         marker_period = float(rospy.get_param('~marker_period', 0.1))
+        publish_markers = bool(rospy.get_param('~publish_markers', True))
+        add_collision = bool(rospy.get_param('~add_collision', True))
+        marker_topic_param = rospy.get_param('~marker_topic', None)
+        marker_latched = bool(rospy.get_param('~marker_latched', True))
+        marker_mode = str(rospy.get_param('~marker_mode', 'resource')).lower()
+        if marker_mode not in ('resource', 'triangles', 'both'):
+            rospy.logwarn(f"Unknown ~marker_mode '{marker_mode}', defaulting to 'resource'")
+            marker_mode = 'resource'
 
-        self._markers: List[RvizMeshMarkerPublisher] = []
-        for it in self._items:
-            self._markers.append(
-                RvizMeshMarkerPublisher(
-                    mesh_resource=it['res'],
-                    frame_id=self.frame_id,
-                    topic='/env_marker',
-                    scale=self.scale_xyz,
-                    get_pose=self._make_pose,
-                    color=tuple(marker_color),
-                    use_embedded_materials=bool(use_embedded_mats),
-                    period=marker_period,
-                    ns=it['id'],  # avoid overwrite in same topic
-                    marker_id=0,
-                )
-            )
+        self._markers_res: List[RvizMeshMarkerPublisher] = []
+        self._markers_tri: List[TrianglesMarkerPublisher] = []
+        if publish_markers:
+            for it in self._items:
+                # Resource marker (MESH_RESOURCE=10)
+                if marker_mode in ('resource', 'both'):
+                    topic_res = marker_topic_param if (isinstance(marker_topic_param, str) and len(marker_topic_param) > 0) else f"/MarkerRes/{it['id']}"
+                    self._markers_res.append(
+                        RvizMeshMarkerPublisher(
+                            mesh_resource=it['res'],
+                            frame_id=self.frame_id,
+                            topic=topic_res,
+                            scale=self.scale_xyz,
+                            get_pose=self._make_pose,
+                            color=tuple(marker_color),
+                            use_embedded_materials=bool(use_embedded_mats),
+                            period=marker_period,
+                            ns=it['id'],
+                            marker_id=0,
+                            latch=marker_latched,
+                        )
+                    )
+                # Triangles marker (TRIANGLE_LIST=11)
+                if marker_mode in ('triangles', 'both'):
+                    topic_tri = f"/MarkerTri/{it['id']}"
+                    self._markers_tri.append(
+                        TrianglesMarkerPublisher(
+                            mesh_abs_path=it['abs'],
+                            frame_id=self.frame_id,
+                            topic=topic_tri,
+                            scale=self.scale_xyz,
+                            get_pose=self._make_pose,
+                            color=tuple(marker_color),
+                            period=marker_period,
+                            ns=it['id'] + '_tri',
+                            marker_id=0,
+                            latch=marker_latched,
+                        )
+                    )
 
         # MoveIt collision objects (per object)
         self._collisions: List[CollisionObjectPublisher] = []
-        for it in self._items:
-            self._collisions.append(
-                CollisionObjectPublisher(
-                    object_id=it['id'],
-                    frame_id=self.frame_id,
-                    get_pose=self._make_pose,
-                    mesh_abs_path=it['abs'],
-                    scale=tuple(self.scale_xyz),
-                    add_delay=1.0,
+        if add_collision:
+            for it in self._items:
+                self._collisions.append(
+                    CollisionObjectPublisher(
+                        object_id=it['id'],
+                        frame_id=self.frame_id,
+                        get_pose=self._make_pose,
+                        mesh_abs_path=it['abs'],
+                        scale=tuple(self.scale_xyz),
+                        add_delay=1.0,
+                    )
                 )
-            )
 
         self._log_startup()
 

@@ -45,6 +45,9 @@ def clear_rviz_markers(topic: str, frame_id: str, object_id: str, remove_all: bo
     t0 = rospy.Time.now()
     while pub.get_num_connections() == 0 and (rospy.Time.now() - t0).to_sec() < 1.0 and not rospy.is_shutdown():
         rospy.sleep(0.05)
+
+    is_tri = ('/MarkerTri/' in topic)
+
     m = Marker()
     m.header.frame_id = frame_id
     m.header.stamp = rospy.Time.now()
@@ -52,12 +55,12 @@ def clear_rviz_markers(topic: str, frame_id: str, object_id: str, remove_all: bo
         m.action = Marker.DELETEALL
         action_desc = 'DELETEALL'
     else:
-        # Delete a specific marker by ns/id pair (our publishers use id=0 and ns=object_id)
-        m.ns = object_id
+        # Delete a specific marker by ns/id pair (publishers use id=0 and ns=object_id or object_id+'_tri')
+        m.ns = f"{object_id}_tri" if is_tri else object_id
         m.id = 0
-        m.type = Marker.MESH_RESOURCE  # match the published type for safety
+        m.type = Marker.TRIANGLE_LIST if is_tri else Marker.MESH_RESOURCE
         m.action = Marker.DELETE
-        action_desc = f'DELETE ns={object_id} id=0'
+        action_desc = f'DELETE ns={m.ns} id=0'
     # Publish repeatedly for a short duration to win over any concurrent publishers
     end_time = rospy.Time.now() + rospy.Duration(max(0.0, duration_sec))
     rate = rospy.Rate(20.0)
@@ -71,13 +74,24 @@ def clear_rviz_markers(topic: str, frame_id: str, object_id: str, remove_all: bo
     rospy.loginfo(f'Sent {action_desc} to {topic} for {duration_sec:.2f}s')
 
 
+def find_marker_topics(prefixes=("/MarkerRes/", "/MarkerTri/")):
+    topics = []
+    try:
+        pubs = rospy.get_published_topics()
+        for name, typ in pubs or []:
+            if typ == 'visualization_msgs/Marker' and any(name.startswith(p) for p in prefixes):
+                topics.append(name)
+    except Exception as e:
+        rospy.logwarn(f'Failed to query published topics: {e}')
+    return topics
+
 def main():
     rospy.init_node('clear_env', anonymous=True)
 
-    topic = rospy.get_param('~topic', '/env_marker')
     frame_id = rospy.get_param('~frame_id', 'world')
     object_id = rospy.get_param('~object_id', 'workspace_mesh')
     clear_duration = float(rospy.get_param('~clear_duration_sec', 1.0))
+    explicit_topic = rospy.get_param('~topic', None)
     _remove_all_param = rospy.get_param('~remove_all', None)
 
     # New usage: use ~object_id:=all to remove all. Keep ~remove_all for backward compatibility.
@@ -87,8 +101,25 @@ def main():
     if _remove_all_param not in (None, False):
         rospy.logwarn("~remove_all is deprecated; use ~object_id:=all instead.")
 
+    # 1) Clear MoveIt objects
     clear_moveit_objects(object_id=object_id, remove_all=remove_all)
-    clear_rviz_markers(topic=topic, frame_id=frame_id, object_id=object_id, remove_all=remove_all, duration_sec=clear_duration)
+
+    # 2) Clear RViz markers on both MarkerRes and MarkerTri
+    topics = []
+    if remove_all:
+        topics = find_marker_topics(prefixes=('/MarkerRes/', '/MarkerTri/'))
+        if explicit_topic and explicit_topic not in topics:
+            topics.append(explicit_topic)
+    else:
+        topics = [f"/MarkerRes/{object_id}", f"/MarkerTri/{object_id}"]
+        if explicit_topic and explicit_topic not in topics:
+            topics.append(explicit_topic)
+
+    if not topics:
+        rospy.loginfo('No marker topics found to clear.')
+
+    for t in topics:
+        clear_rviz_markers(topic=t, frame_id=frame_id, object_id=object_id, remove_all=remove_all, duration_sec=clear_duration)
 
     rospy.loginfo('Environment clearing completed.')
 

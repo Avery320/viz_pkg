@@ -40,5 +40,5 @@ if __name__ == '__main__':
 
     # Keep-alive behavior: load objects and keep node running
     node = ObjPublisher()
-    rospy.loginfo("Keep-alive: viz_obj is running. Republish PlanningScene on /planning_scene/scene; publishing markers on /env_marker")
+    rospy.loginfo("Keep-alive: viz_obj is running. Republish PlanningScene on /planning_scene/scene; publishing markers per ~marker_mode (resource/triangles/both)")
     rospy.spin()

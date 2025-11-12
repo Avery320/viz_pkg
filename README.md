@@ -24,25 +24,25 @@
 ## 使用方式
 - 啟動常駐載入器（單一檔）
 ```bash
-rosrun viz_pkg viz_obj.py _mesh_path:=modol/3dcp_ws.stl
-# 或 package URL：_mesh_path:=package://viz_pkg/modol/3dcp_ws.stl
+rosrun viz_pkg viz_obj.py _mesh_path:=model/3dcp_ws.stl
+# 或 package URL：_mesh_path:=package://viz_pkg/model/3dcp_ws.stl
 ```
 - 多檔（逗號分隔）
 ```bash
-rosrun viz_pkg viz_obj.py "_mesh_paths:=modol/a.stl,modol/b.stl"
+rosrun viz_pkg viz_obj.py "_mesh_paths:=model/a.stl,model/b.stl"
 ```
 - 只發布 Marker（不加入碰撞），並自訂單一 topic（resource 模式）
 ```bash
-rosrun viz_pkg viz_obj.py _mesh_path:=modol/3dcp_ws.stl _publish_markers:=true _add_collision:=false _marker_mode:=resource _marker_topic:=/env_marker
+rosrun viz_pkg viz_obj.py _mesh_path:=model/3dcp_ws.stl _publish_markers:=true _add_collision:=false _marker_mode:=resource _marker_topic:=/env_marker
 ```
 - 同時發佈 MESH_RESOURCE 與 TRIANGLE_LIST（雙軌）
 ```bash
-rosrun viz_pkg viz_obj.py _mesh_path:=modol/3dcp_ws.stl _publish_markers:=true _add_collision:=false _marker_mode:=both
-# 預設 topic：/MarkerRes/<id> 與 /MarkerTri/<id>
+rosrun viz_pkg viz_obj.py _mesh_path:=model/3dcp_ws.stl
+# 預設同時發佈 /MarkerRes/<id> 與 /MarkerTri/<id>，並加入碰撞
 ```
 - 只加入碰撞（不發 Marker）
 ```bash
-rosrun viz_pkg viz_obj.py _mesh_path:=modol/3dcp_ws.stl _publish_markers:=false _add_collision:=true
+rosrun viz_pkg viz_obj.py _mesh_path:=model/3dcp_ws.stl _publish_markers:=false _add_collision:=true
 ```
 
 ## 清除 / 查詢
@@ -69,7 +69,7 @@ rosrun viz_pkg list_models.py
 - ~scale：（預設 [0.001, 0.001, 0.001]，mm→m）
 - ~publish_markers：（預設 true）是否發布 RViz Marker
 - ~add_collision：（預設 true）是否加入 MoveIt 碰撞物件
-- ~marker_mode：（resource｜triangles｜both；預設 resource）
+- ~marker_mode：（resource｜triangles｜both；預設 both）
 - ~marker_topic：（字串，選填）只覆寫 resource 模式下的 topic；未提供時預設 /MarkerRes/<id>
 - ~marker_latched：（預設 true）Marker publisher 是否使用 latched（晚訂閱者也能拿到最後一筆）
 - ~marker_use_embedded_materials：（預設 false）

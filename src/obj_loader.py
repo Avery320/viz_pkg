@@ -31,17 +31,17 @@ class ObjPublisher:
 
         raw_paths = rospy.get_param('~mesh_paths', None)
         if raw_paths is None:
-            # fallback to single ~mesh_path; auto-detect default location (config/ or modol/)
+            # fallback to single ~mesh_path; auto-detect default location (config/ or model/)
             single = rospy.get_param('~mesh_path', None)
             if single is None:
-                candidates = ['config/3dcp_ws.stl', 'modol/3dcp_ws.stl', 'modol/module.stl']
+                candidates = ['config/3dcp_ws.stl', 'model/3dcp_ws.stl', 'model/module.stl']
                 chosen = None
                 for c in candidates:
                     if os.path.exists(os.path.join(self.package_path, c)):
                         chosen = c
                         break
                 if chosen is None:
-                    rospy.logwarn('No default STL found under config/ or modol/. Please set ~mesh_path or ~mesh_paths.')
+                    rospy.logwarn('No default STL found under config/ or model/. Please set ~mesh_path or ~mesh_paths.')
                     chosen = 'config/3dcp_ws.stl'
                 single = chosen
             paths: List[str] = [single]
@@ -86,10 +86,10 @@ class ObjPublisher:
         add_collision = bool(rospy.get_param('~add_collision', True))
         marker_topic_param = rospy.get_param('~marker_topic', None)
         marker_latched = bool(rospy.get_param('~marker_latched', True))
-        marker_mode = str(rospy.get_param('~marker_mode', 'resource')).lower()
+        marker_mode = str(rospy.get_param('~marker_mode', 'both')).lower()
         if marker_mode not in ('resource', 'triangles', 'both'):
-            rospy.logwarn(f"Unknown ~marker_mode '{marker_mode}', defaulting to 'resource'")
-            marker_mode = 'resource'
+            rospy.logwarn(f"Unknown ~marker_mode '{marker_mode}', defaulting to 'both'")
+            marker_mode = 'both'
 
         self._markers_res: List[RvizMeshMarkerPublisher] = []
         self._markers_tri: List[TrianglesMarkerPublisher] = []

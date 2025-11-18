@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import os
-import sys
+
 import rospy
 import rospkg
 from geometry_msgs.msg import Pose
@@ -20,7 +20,7 @@ class ObjPublisher:
 
     def __init__(self):
         # Parameters
-        self.frame_id = 'world'
+        self.frame_id = rospy.get_param('~frame_id', 'world')
         self.object_id = rospy.get_param('~object_id', 'workspace_mesh')
         self.scale_xyz = rospy.get_param('~scale', [0.001, 0.001, 0.001])
         self.pos_xyz = (0.0, 0.0, 0.0)
@@ -80,11 +80,9 @@ class ObjPublisher:
 
         # RViz markers / MoveIt collision: parameters and conditional creation
         marker_color = [0.8, 0.8, 0.8, 0.4]
-        use_embedded_mats = rospy.get_param('~marker_use_embedded_materials', False)
         marker_period = float(rospy.get_param('~marker_period', 0.1))
         publish_markers = bool(rospy.get_param('~publish_markers', True))
         add_collision = bool(rospy.get_param('~add_collision', True))
-        marker_topic_param = rospy.get_param('~marker_topic', None)
         marker_latched = bool(rospy.get_param('~marker_latched', True))
         marker_mode = str(rospy.get_param('~marker_mode', 'both')).lower()
         if marker_mode not in ('resource', 'triangles', 'both'):
@@ -97,7 +95,7 @@ class ObjPublisher:
             for it in self._items:
                 # Resource marker (MESH_RESOURCE=10)
                 if marker_mode in ('resource', 'both'):
-                    topic_res = marker_topic_param if (isinstance(marker_topic_param, str) and len(marker_topic_param) > 0) else f"/MarkerRes/{it['id']}"
+                    topic_res = f"/MarkerRes/{it['id']}"
                     self._markers_res.append(
                         RvizMeshMarkerPublisher(
                             mesh_resource=it['res'],
@@ -106,7 +104,6 @@ class ObjPublisher:
                             scale=self.scale_xyz,
                             get_pose=self._make_pose,
                             color=tuple(marker_color),
-                            use_embedded_materials=bool(use_embedded_mats),
                             period=marker_period,
                             ns=it['id'],
                             marker_id=0,
@@ -148,13 +145,6 @@ class ObjPublisher:
 
         self._log_startup()
 
-    def _parse_xyz_from_argv(self, default=(0.0, 0.0, 0.0)):
-        if len(sys.argv) >= 4:
-            try:
-                return float(sys.argv[1]), float(sys.argv[2]), float(sys.argv[3])
-            except Exception:
-                rospy.logwarn('Invalid CLI args; using default position (x y z)')
-        return default
 
     def _make_pose(self) -> Pose:
         pose = Pose()

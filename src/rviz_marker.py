@@ -18,7 +18,7 @@ class RvizMeshMarkerPublisher:
         self,
         mesh_resource: str,
         frame_id: str = 'world',
-        topic: str = '/env_marker',
+        topic: str = '/MarkerRes/mesh',
         scale: Sequence[float] = (1.0, 1.0, 1.0),
         get_pose: Optional[Callable[[], Pose]] = None,
         color: Tuple[float, float, float, float] = (0.8, 0.8, 0.8, 0.4),
